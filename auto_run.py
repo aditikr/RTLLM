@@ -45,12 +45,13 @@ def cal_atk(dic_list, n, k):
 
 
 progress_bar = tqdm.tqdm(total=290)
-design_name = ['accu', 'adder_8bit', 'adder_16bit', 'adder_32bit', 'adder_pipe_64bit', 'asyn_fifo', 'calendar', 'counter_12', 'edge_detect',
-               'freq_div', 'fsm', 'JC_counter', 'multi_16bit', 'multi_booth_8bit', 'multi_pipe_4bit', 'multi_pipe_8bit', 'parallel2serial' , 'pe' , 'pulse_detect', 
-               'radix2_div', 'RAM', 'right_shifter',  'serial2parallel', 'signal_generator','synchronizer', 'alu', 'div_16bit', 'traffic_light', 'width_8to16']
+# design_name = ['accu', 'adder_8bit', 'adder_16bit', 'adder_32bit', 'adder_pipe_64bit', 'asyn_fifo', 'calendar', 'counter_12', 'edge_detect',
+#                'freq_div', 'fsm', 'JC_counter', 'multi_16bit', 'multi_booth_8bit', 'multi_pipe_4bit', 'multi_pipe_8bit', 'parallel2serial' , 'pe' , 'pulse_detect', 
+#                'radix2_div', 'RAM', 'right_shifter',  'serial2parallel', 'signal_generator','synchronizer', 'alu', 'div_16bit', 'traffic_light', 'width_8to16']
+design_name = ['adder_16bit', 'multi_16bit']
 
-
-path = "/home/coguest/luyao/SmallDesigns/chatgpt35/"
+#path = "/home/coguest/luyao/SmallDesigns/chatgpt35/"
+path = "/afs/ece.cmu.edu/usr/akraghav/Private/prompt/RTLLM/_chatgpt4"
 result_dic = {key: {} for key in design_name}
 for item in design_name:
     result_dic[item]['syntax_success'] = 0
@@ -60,6 +61,7 @@ for item in design_name:
 def test_one_file(testfile, result_dic):
     for design in design_name:
         if os.path.exists(f"{design}/makefile"):
+            
             makefile_path = os.path.join(design, "makefile")
             with open(makefile_path, "r") as file:
                 makefile_content = file.read()
@@ -94,7 +96,7 @@ def test_one_file(testfile, result_dic):
 
     return result_dic
 
-file_id = 1
+file_id = 6
 n = 0
 while os.path.exists(os.path.join(path, f"t{file_id}")):
     # if file_id == 5:
