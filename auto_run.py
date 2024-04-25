@@ -45,10 +45,13 @@ def cal_atk(dic_list, n, k):
 
 
 progress_bar = tqdm.tqdm(total=290)
-# design_name = ['accu', 'adder_8bit', 'adder_16bit', 'adder_32bit', 'adder_pipe_64bit', 'asyn_fifo', 'calendar', 'counter_12', 'edge_detect',
-#                'freq_div', 'fsm', 'JC_counter', 'multi_16bit', 'multi_booth_8bit', 'multi_pipe_4bit', 'multi_pipe_8bit', 'parallel2serial' , 'pe' , 'pulse_detect', 
-#                'radix2_div', 'RAM', 'right_shifter',  'serial2parallel', 'signal_generator','synchronizer', 'alu', 'div_16bit', 'traffic_light', 'width_8to16']
-design_name = ['adder_16bit', 'multi_16bit']
+design_name = ['accu', 'adder_8bit', 'adder_16bit', 'adder_32bit', 'adder_pipe_64bit', 'asyn_fifo', 'calendar', 'counter_12', 'edge_detect',
+               'freq_div', 'fsm', 'JC_counter', 'multi_16bit', 'multi_booth_8bit', 'multi_pipe_4bit', 'multi_pipe_8bit', 'parallel2serial' , 'pe' , 'pulse_detect', 
+               'radix2_div', 'RAM', 'right_shifter',  'serial2parallel', 'signal_generator','synchronizer', 'alu', 'div_16bit', 'traffic_light', 'width_8to16']
+#design_name = ['pulse_detect']
+#design_name = ['accu', 'asyn_fifo', 'freq_div', 'fsm', 'multi_16bit']
+#design_name = ['accu', 'adder_8bit', 'adder_16bit', 'adder_32bit', 'adder_pipe_64bit', 'asyn_fifo']
+#design_name = ['accu', 'adder_8bit', 'adder_16bit', 'pulse_detect', 'right_shifter']
 
 #path = "/home/coguest/luyao/SmallDesigns/chatgpt35/"
 path = "/afs/ece.cmu.edu/usr/akraghav/Private/prompt/RTLLM/_chatgpt4"
@@ -90,13 +93,13 @@ def test_one_file(testfile, result_dic):
             
             with open("makefile", "w") as file:
                 file.write(makefile_content)
-            os.system("make clean")
+            #os.system("make clean")
             os.chdir("..")
             progress_bar.update(1)
 
     return result_dic
 
-file_id = 6
+file_id = 17
 n = 0
 while os.path.exists(os.path.join(path, f"t{file_id}")):
     # if file_id == 5:
@@ -104,6 +107,9 @@ while os.path.exists(os.path.join(path, f"t{file_id}")):
     result_dic = test_one_file(f"t{file_id}", result_dic)
     n += 1
     file_id += 1
+
+
+result_dic = test_one_file(f"t{file_id}", result_dic)
 print(result_dic)
 cal_atk(result_dic, n, 1)
 total_syntax_success = 0
@@ -115,5 +121,8 @@ for item in design_name:
         total_func_success += 1
 print(f'total_syntax_success: {total_syntax_success}/{len(design_name)}')
 print(f'total_func_success: {total_func_success}/{len(design_name)}')
+#Write the result to a file, with file id in the name
+with open(f"result_{file_id}.txt", "w") as file:
+    file.write(str(result_dic))
 # print(f"Syntax Success: {syntax_success}/{len(design_name)}")
 # print(f"Functional Success: {func_success}/{len(design_name)}")
