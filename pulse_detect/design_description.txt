@@ -1,6 +1,6 @@
 Please act as a professional verilog designer.
 
-Implement a module for pulse detection. The 1-bit input signal data_in is a continuous input, which is triggered by clk. When "data_in" changes from 0 to 1 to 0(3 cycles), this is considered as a "pulse". The indicating signal dataout is 1 at the end cycle of the "pulse", and then returns to 0 until the corresponding pulse appears again. For example, if data_in is 01010(5 cycles), the data_out is 00101.
+Implement a module for pulse detection. The 1-bit input signal data_in is a continuous input, which is triggered by clk. data_out is 1 when 0->1->0 is seen on data_in. Data_out is 1 on the same cycle 010 is seen. This requires 3 cycles. The pattern can overlap, for example, if data_in is 010101, the data_out is 00101. If data_in is 0110, data_out is 0000.
 
 
 Module name:  

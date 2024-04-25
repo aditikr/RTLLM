@@ -1,0 +1,2195 @@
+accu
+Certainly! Below is a Verilog module that implements the described functionality. The module accumulates four 8-bit input values and outputs their sum as a 10-bit value. The output is valid for one cycle after the accumulation of four valid inputs. The module also handles reset conditions and ensures that the output is only valid when exactly four inputs have been accumulated.
+
+```verilog
+module accu (
+    input clk,
+    input rst_n,
+    input [7:0] data_in,
+    input valid_in,
+    output reg valid_out,
+    output reg [9:0] data_out
+);
+
+    // Internal variables
+    reg [9:0] sum;
+    reg [1:0] count;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            // Reset all registers
+            sum <= 0;
+            count <= 0;
+            valid_out <= 0;
+            data_out <= 0;
+        end else begin
+            if (valid_in) begin
+                if (count < 3) begin
+                    // Accumulate data and increment count
+                    sum <= sum + data_in;
+                    count <= count + 1;
+                    valid_out <= 0;  // Output not valid yet
+                end else begin
+                    // Last data for accumulation
+                    sum <= sum + data_in;
+                    data_out <= sum;  // Output the accumulated sum
+                    valid_out <= 1;   // Output is now valid
+                    sum <= 0;         // Reset sum for next accumulation
+                    count <= 0;       // Reset count
+                end
+            end else begin
+                // No valid input, maintain current state but ensure output is not valid
+                valid_out <= 0;
+            end
+        end
+    end
+
+endmodule
+```
+
+### Explanation:
+1. **Registers and Signals**:
+   - `sum`: A 10-bit register to accumulate the sum of the inputs.
+   - `count`: A 2-bit counter to track the number of valid inputs received.
+   - `valid_out`: Indicates when the output is valid (i.e., after four inputs have been accumulated).
+   - `data_out`: Holds the accumulated result.
+
+2. **Reset Condition**:
+   - When `rst_n` is low, all internal registers are reset.
+
+3. **Data Accumulation**:
+   - On each valid input (`valid_in` high), the module checks the `count`.
+   - If fewer than four inputs have been received (`count < 3`), it accumulates the input in `sum` and increments `count`.
+   - On the fourth input (`count = 3`), it adds the input to `sum`, outputs the total in `data_out`, sets `valid_out` high for one cycle, and resets `sum` and `count` for the next round of accumulation.
+
+4. **Output Validity**:
+   - `valid_out` is set high only when the accumulated result is ready (after four valid inputs).
+   - It is important to set `valid_out` back to 0 in all other cases to ensure it is high for only one cycle.
+
+### Edge Cases and Complex Scenarios:
+- **Reset During Accumulation**: If a reset occurs during an accumulation process, the module will lose the partial sum and start over, which is the expected behavior.
+- **Irregular `valid_in`**: If `valid_in` is not consistently high for four cycles, the module will only accumulate data when `valid_in` is high, and `valid_out` will only assert after four such valid inputs.
+- **Overflow**: Since the sum of four 8-bit numbers can fit within 10 bits, overflow handling isn't necessary in this specific case.
+
+This module should meet the requirements as specified, handling both normal operation and edge cases appropriately.
+
+
+adder_8bit
+Certainly! Below is the Verilog implementation for an 8-bit adder using a series of full adders. Each full adder will take care of adding each bit of the two 8-bit numbers along with a carry from the previous bit.
+
+### Verilog Code for 8-bit Adder
+
+```verilog
+module adder_8bit(
+    input [7:0] a,
+    input [7:0] b,
+    input cin,
+    output [7:0] sum,
+    output cout
+);
+
+// Internal wires to carry the carry-out from one full adder to the carry-in of the next
+wire [7:0] carry;
+
+// Full adder for bit 0
+full_adder fa0 (
+    .a(a[0]),
+    .b(b[0]),
+    .cin(cin),
+    .sum(sum[0]),
+    .cout(carry[0])
+);
+
+// Full adders for bits 1 through 6
+genvar i;
+generate
+    for (i = 1; i < 8; i = i + 1) begin : fa_gen
+        full_adder fa (
+            .a(a[i]),
+            .b(b[i]),
+            .cin(carry[i-1]),
+            .sum(sum[i]),
+            .cout(carry[i])
+        );
+    end
+endgenerate
+
+// Assign the final carry-out
+assign cout = carry[7];
+
+endmodule
+
+// Full adder module
+module full_adder(
+    input a,
+    input b,
+    input cin,
+    output sum,
+    output cout
+);
+    assign sum = a ^ b ^ cin; // XOR for sum
+    assign cout = (a & b) | (b & cin) | (a & cin); // Majority function for carry-out
+endmodule
+```
+
+### Explanation and Considerations
+
+1. **Module Structure**: The `adder_8bit` module uses eight instances of a `full_adder` module. The first full adder receives the external carry-in (`cin`) and the least significant bits of `a` and `b`. Each subsequent full adder receives the carry-out of the previous stage as its carry-in.
+
+2. **Carry Chain**: The carry output of each full adder is connected to the carry input of the next full adder in the chain, forming a ripple carry adder. This is a simple but effective way to construct a multi-bit adder from single-bit adders.
+
+3. **Performance**: The ripple carry adder is straightforward but can be slow for large bit widths because each full adder must wait for the carry from the previous stage. This propagation delay can be significant in high-performance applications.
+
+4. **Edge Cases**: The primary edge cases involve overflow scenarios, where the final carry-out (`cout`) indicates that the sum has exceeded the maximum value that can be represented by the 8-bit sum. This needs to be handled or noted by the system utilizing this adder.
+
+5. **Modularity**: The `full_adder` module is defined separately and instantiated multiple times in the `adder_8bit` module. This modular design makes the code reusable and easier to manage.
+
+This implementation provides a clear example of how to construct a larger combinational logic circuit from smaller building blocks in Verilog.
+
+
+adder_16bit
+To implement a 16-bit full adder in Verilog using smaller bit-width adders, we will first create an 8-bit adder module. This 8-bit adder will then be instantiated twice within the 16-bit adder module. The 16-bit adder will handle the carry propagation between the two 8-bit adders.
+
+### Step 1: Define the 8-bit Adder Module
+This module will take two 8-bit inputs and a carry-in, and it will output an 8-bit sum and a carry-out.
+
+```verilog
+module adder_8bit(
+    input [7:0] a,
+    input [7:0] b,
+    input Cin,
+    output [7:0] y,
+    output Co
+);
+    // Internal signal for carry
+    wire [8:0] carry;
+
+    // Assign the first carry as the input carry
+    assign carry[0] = Cin;
+
+    // Generate sum and carry for each bit
+    genvar i;
+    generate
+        for (i = 0; i < 8; i = i + 1) begin : adder_loop
+            assign carry[i+1] = (a[i] & b[i]) | (a[i] & carry[i]) | (b[i] & carry[i]);
+            assign y[i] = a[i] ^ b[i] ^ carry[i];
+        end
+    endgenerate
+
+    // Output the final carry
+    assign Co = carry[8];
+endmodule
+```
+
+### Step 2: Define the 16-bit Adder Module Using Two 8-bit Adders
+This module will instantiate the 8-bit adder twice. The carry-out of the first adder will be the carry-in of the second adder.
+
+```verilog
+module adder_16bit(
+    input [15:0] a,
+    input [15:0] b,
+    input Cin,
+    output [15:0] y,
+    output Co
+);
+    wire carry_mid;
+
+    // Instantiate the first 8-bit adder (lower bits)
+    adder_8bit lower_adder(
+        .a(a[7:0]),
+        .b(b[7:0]),
+        .Cin(Cin),
+        .y(y[7:0]),
+        .Co(carry_mid)
+    );
+
+    // Instantiate the second 8-bit adder (higher bits)
+    adder_8bit upper_adder(
+        .a(a[15:8]),
+        .b(b[15:8]),
+        .Cin(carry_mid),
+        .y(y[15:8]),
+        .Co(Co)
+    );
+endmodule
+```
+
+### Edge Cases and Complex Scenarios to Consider
+1. **All Bits Set:** When all bits of `a` and `b` are set to 1, and `Cin` is also 1, the adder should correctly propagate the carry and compute the sum.
+2. **Zero Input:** When both `a` and `b` are zero, the output `y` should be zero and `Co` should be zero.
+3. **Carry Propagation:** Proper carry propagation between the lower and upper 8-bit adders is crucial, especially when the lower adder generates a carry-out.
+
+This implementation ensures that the 16-bit adder is purely combinational and leverages smaller, manageable components (8-bit adders) to build up the functionality. This modular approach also facilitates easier debugging and testing of the design.
+
+
+adder_32bit
+To design a 32-bit carry-lookahead adder using Verilog, we'll first create a 16-bit carry-lookahead adder block and then use two instances of this block to construct the 32-bit adder. The 16-bit CLA block will handle the generation and propagation of carries, and the 32-bit adder will manage the cascading of these blocks.
+
+### Step 1: Define the 16-bit Carry-Lookahead Adder Block
+
+We'll start by designing a 16-bit carry-lookahead adder (CLA) module. This module will compute the sum of two 16-bit numbers and generate a carry-out. The CLA logic involves generating propagate and generate signals for each bit, and then using these to compute the carry for each bit position.
+
+```verilog
+module cla_16bit(
+    input [15:0] A,
+    input [15:0] B,
+    input Cin,
+    output [15:0] S,
+    output Cout
+);
+    wire [15:0] P, G;
+    wire [16:0] C;
+
+    // Propagate and Generate
+    assign P = A ^ B; // Propagate
+    assign G = A & B; // Generate
+
+    // Carry calculations
+    assign C[0] = Cin;
+    assign C[1] = G[0] | (P[0] & C[0]);
+    assign C[2] = G[1] | (P[1] & C[1]);
+    assign C[3] = G[2] | (P[2] & C[2]);
+    // Continue for all bits
+    genvar i;
+    generate
+        for (i = 1; i < 16; i = i + 1) begin : carry_logic
+            assign C[i+1] = G[i] | (P[i] & C[i]);
+        end
+    endgenerate
+
+    // Sum calculation
+    assign S = P ^ C[15:0];
+    assign Cout = C[16];
+
+endmodule
+```
+
+### Step 2: Define the 32-bit Adder Using Two 16-bit CLA Blocks
+
+Now, we'll use two instances of the `cla_16bit` module to create the 32-bit adder. The first instance will handle the lower 16 bits, and the second instance will handle the upper 16 bits, taking the carry-out from the first as the carry-in.
+
+```verilog
+module adder_32bit(
+    input [31:0] A,
+    input [31:0] B,
+    output [31:0] S,
+    output C32
+);
+    wire C16; // Carry from the lower 16 bits to the upper 16 bits
+
+    // Lower 16 bits
+    cla_16bit lower_half (
+        .A(A[15:0]),
+        .B(B[15:0]),
+        .Cin(1'b0),
+        .S(S[15:0]),
+        .Cout(C16)
+    );
+
+    // Upper 16 bits
+    cla_16bit upper_half (
+        .A(A[31:16]),
+        .B(B[31:16]),
+        .Cin(C16),
+        .S(S[31:16]),
+        .Cout(C32)
+    );
+
+endmodule
+```
+
+### Considerations and Edge Cases
+
+1. **Overflow Detection**: The carry-out (C32) can be used to detect an overflow in signed arithmetic operations.
+2. **All Zeros Input**: Ensure that the adder correctly handles cases where all bits of A and B are zero.
+3. **All Ones Input**: Test the adder with all bits of A and B set to one to ensure correct carry propagation.
+4. **Boundary Values**: Test with boundary values like `16'hFFFF` for 16-bit segments to ensure correct behavior at segment boundaries.
+
+This implementation provides a basic 32-bit carry-lookahead adder using Verilog. Further optimizations and detailed testing are recommended for practical applications, especially in handling edge cases and ensuring robustness in various operational scenarios.
+
+
+adder_pipe_64bit
+Certainly! Below is a Verilog implementation of a 64-bit ripple carry adder with pipeline stages. This design includes registers to store intermediate values and control signals, ensuring that the output is synchronized with the clock and reset signals. The module also handles edge cases such as reset conditions and ensures that the output enable signal (`o_en`) is managed correctly across pipeline stages.
+
+```verilog
+module adder_pipe_64bit(
+    input clk,
+    input rst_n,
+    input i_en,
+    input [63:0] adda,
+    input [63:0] addb,
+    output reg [64:0] result,
+    output reg o_en
+);
+
+// Pipeline stage registers
+reg [63:0] adda_reg1, adda_reg2;
+reg [63:0] addb_reg1, addb_reg2;
+reg [64:0] sum_reg1, sum_reg2;
+reg i_en_reg1, i_en_reg2, i_en_reg3;
+
+// Combinational logic for addition
+wire [64:0] sum_stage1;
+assign sum_stage1 = adda_reg1 + addb_reg1;
+
+// Pipeline stage 1
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        adda_reg1 <= 0;
+        addb_reg1 <= 0;
+        i_en_reg1 <= 0;
+    end else begin
+        adda_reg1 <= adda;
+        addb_reg1 <= addb;
+        i_en_reg1 <= i_en;
+    end
+end
+
+// Pipeline stage 2
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        adda_reg2 <= 0;
+        addb_reg2 <= 0;
+        sum_reg1 <= 0;
+        i_en_reg2 <= 0;
+    end else begin
+        adda_reg2 <= adda_reg1;
+        addb_reg2 <= addb_reg1;
+        sum_reg1 <= sum_stage1;
+        i_en_reg2 <= i_en_reg1;
+    end
+end
+
+// Pipeline stage 3 - Output stage
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        sum_reg2 <= 0;
+        i_en_reg3 <= 0;
+        o_en <= 0;
+        result <= 0;
+    end else begin
+        sum_reg2 <= sum_reg1;
+        i_en_reg3 <= i_en_reg2;
+        o_en <= i_en_reg3;
+        result <= sum_reg2;
+    end
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Input and Output Ports**: The module has 64-bit inputs `adda` and `addb`, and a 65-bit output `result` to accommodate the possible overflow. The `o_en` signal indicates when the result is valid.
+
+2. **Pipeline Registers**: The design uses several registers (`adda_reg1`, `addb_reg1`, etc.) to store the values of operands and intermediate sums across different pipeline stages. This helps in managing the data flow and timing.
+
+3. **Addition Logic**: The actual addition is performed in the first pipeline stage, and the result is propagated through the pipeline.
+
+4. **Reset and Enable Handling**: Each stage checks the reset signal (`rst_n`). If it is low, the registers are reset to zero, and the enable signals are managed to ensure correct operation and synchronization.
+
+5. **Output Enable (`o_en`)**: The output enable signal is managed such that it is asserted in the final stage when the result is valid and ready to be output.
+
+This implementation ensures that the adder operates correctly in a pipelined environment, handling synchronization and timing issues effectively.
+
+
+asyn_fifo
+Below is a Verilog implementation of an asynchronous FIFO with the specifications you provided. This includes the instantiation of a dual-port RAM, management of read and write pointers, synchronization mechanisms, and the generation of full and empty signals based on Gray code comparisons.
+
+```verilog
+module asyn_fifo #(
+    parameter WIDTH = 8,
+    parameter DEPTH = 16
+)(
+    input wclk,
+    input rclk,
+    input wrstn,
+    input rrstn,
+    input winc,
+    input rinc,
+    input [WIDTH-1:0] wdata,
+    output reg wfull,
+    output reg rempty,
+    output reg [WIDTH-1:0] rdata
+);
+
+localparam ADDR_WIDTH = $clog2(DEPTH);
+
+// RAM instantiation
+reg [WIDTH-1:0] ram [DEPTH-1:0];
+reg [ADDR_WIDTH-1:0] waddr, raddr;
+reg wenc, renc;
+
+always @(posedge wclk) begin
+    if (wenc) begin
+        ram[waddr] <= wdata;
+    end
+end
+
+always @(posedge rclk) begin
+    if (renc) begin
+        rdata <= ram[raddr];
+    end
+end
+
+// Pointer logic
+reg [ADDR_WIDTH:0] wptr, rptr;
+reg [ADDR_WIDTH:0] wptr_gray, rptr_gray;
+reg [ADDR_WIDTH:0] rptr_gray_sync1, rptr_gray_sync2;
+reg [ADDR_WIDTH:0] wptr_gray_sync1, wptr_gray_sync2;
+
+// Binary to Gray conversion
+function [ADDR_WIDTH:0] bin_to_gray(input [ADDR_WIDTH:0] bin);
+    bin_to_gray = bin ^ (bin >> 1);
+endfunction
+
+// Gray to Binary conversion
+function [ADDR_WIDTH:0] gray_to_bin(input [ADDR_WIDTH:0] gray);
+    integer i;
+    begin
+        gray_to_bin = gray;
+        for (i = 1; i <= ADDR_WIDTH; i = i << 1) begin
+            gray_to_bin = gray_to_bin ^ (gray_to_bin >> i);
+        end
+    end
+endfunction
+
+// Write pointer management
+always @(posedge wclk or negedge wrstn) begin
+    if (!wrstn) begin
+        wptr <= 0;
+        wptr_gray <= 0;
+    end else if (winc && !wfull) begin
+        wptr <= wptr + 1;
+        wptr_gray <= bin_to_gray(wptr + 1);
+    end
+end
+
+// Read pointer management
+always @(posedge rclk or negedge rrstn) begin
+    if (!rrstn) begin
+        rptr <= 0;
+        rptr_gray <= 0;
+    end else if (rinc && !rempty) begin
+        rptr <= rptr + 1;
+        rptr_gray <= bin_to_gray(rptr + 1);
+    end
+end
+
+// Synchronizing read pointer to write clock domain
+always @(posedge wclk) begin
+    rptr_gray_sync1 <= rptr_gray;
+    rptr_gray_sync2 <= rptr_gray_sync1;
+end
+
+// Synchronizing write pointer to read clock domain
+always @(posedge rclk) begin
+    wptr_gray_sync1 <= wptr_gray;
+    wptr_gray_sync2 <= wptr_gray_sync1;
+end
+
+// Full and empty logic
+always @(*) begin
+    wfull = (wptr_gray == {~rptr_gray_sync2[ADDR_WIDTH:ADDR_WIDTH-1], rptr_gray_sync2[ADDR_WIDTH-2:0]});
+    rempty = (rptr_gray == wptr_gray_sync2);
+end
+
+// RAM read/write enable
+always @(*) begin
+    wenc = winc && !wfull;
+    renc = rinc && !rempty;
+    waddr = gray_to_bin(wptr_gray)[ADDR_WIDTH-1:0];
+    raddr = gray_to_bin(rptr_gray)[ADDR_WIDTH-1:0];
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Dual-Port RAM**: The RAM is modeled as an array with separate read and write operations controlled by `wenc` and `renc`.
+2. **Pointer Management**: Write and read pointers (`wptr` and `rptr`) are maintained in binary but converted to Gray code for synchronization across clock domains.
+3. **Synchronization**: Two-stage synchronization is used for both read and write pointers to mitigate metastability issues when crossing clock domains.
+4. **Full and Empty Logic**: The FIFO full and empty conditions are determined by comparing the synchronized Gray code pointers.
+5. **RAM Addressing**: The RAM addresses are derived by converting the Gray code pointers back to binary.
+
+This module should be instantiated and connected appropriately in a larger system, ensuring that the clocks, resets, and other signals are properly managed.
+
+
+calendar
+Certainly! Below is the Verilog code for a perpetual calendar module as described. This module will correctly handle the increment of seconds, minutes, and hours based on the clock and reset inputs. It also wraps around the values appropriately when they reach their maximum.
+
+```verilog
+module calendar(
+    input CLK,      // Clock input
+    input RST,      // Active high reset signal
+    output reg [5:0] Hours,  // 6-bit output for hours (0-23)
+    output reg [5:0] Mins,   // 6-bit output for minutes (0-59)
+    output reg [5:0] Secs    // 6-bit output for seconds (0-59)
+);
+
+// Initialize the outputs
+initial begin
+    Hours = 6'd0;
+    Mins = 6'd0;
+    Secs = 6'd0;
+end
+
+// Update seconds
+always @(posedge CLK or posedge RST) begin
+    if (RST) begin
+        Secs <= 6'd0;
+    end else if (Secs == 59) begin
+        Secs <= 6'd0;
+    end else begin
+        Secs <= Secs + 1;
+    end
+end
+
+// Update minutes
+always @(posedge CLK or posedge RST) begin
+    if (RST) begin
+        Mins <= 6'd0;
+    end else if (Secs == 59) begin
+        if (Mins == 59) begin
+            Mins <= 6'd0;
+        end else begin
+            Mins <= Mins + 1;
+        end
+    end
+end
+
+// Update hours
+always @(posedge CLK or posedge RST) begin
+    if (RST) begin
+        Hours <= 6'd0;
+    end else if (Secs == 59 && Mins == 59) begin
+        if (Hours == 23) begin
+            Hours <= 6'd0;
+        end else begin
+            Hours <= Hours + 1;
+        end
+    end
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Initialization**: The `initial` block sets the initial values of `Hours`, `Mins`, and `Secs` to zero.
+2. **Seconds Update**: The first `always` block updates the `Secs` output. It resets to 0 if the reset signal is high or increments by 1 unless it's already at 59, in which case it wraps to 0.
+3. **Minutes Update**: The second `always` block handles the `Mins` output. It resets to 0 if the reset is high. If `Secs` reaches 59, it checks if `Mins` is also 59 to wrap to 0, otherwise, it increments.
+4. **Hours Update**: The third `always` block updates the `Hours` output. It resets to 0 if the reset is high. If both `Secs` and `Mins` are 59, it checks if `Hours` is 23 to wrap to 0, otherwise, it increments.
+
+### Edge Cases:
+- **Reset Behavior**: The module correctly resets all values to 0 when the reset signal is high.
+- **Maximum Value Wrapping**: Each time unit correctly wraps around to 0 after reaching its maximum value.
+- **Clock Dependency**: The module updates based on the positive edge of the clock, ensuring synchronized updates.
+
+This implementation should meet the requirements for a basic perpetual calendar in a digital system.
+
+
+counter_12
+Certainly! Below is the Verilog implementation for the `counter_12` module as per your specifications. This module counts from 0 to 11 and wraps around, with control over counting provided by the `valid_count` signal. The counter resets to 0 when the reset signal `rst_n` is active low.
+
+### Verilog Code
+```verilog
+module counter_12 (
+    input wire rst_n,
+    input wire clk,
+    input wire valid_count,
+    output reg [3:0] out
+);
+
+    // Counter operation
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            // Reset the counter to 0 when reset is active low
+            out <= 4'b0000;
+        end
+        else if (valid_count) begin
+            // Increment the counter if valid_count is high
+            if (out == 4'd11) begin
+                // Reset to 0 if the counter reaches 11
+                out <= 4'b0000;
+            end
+            else begin
+                // Increment the counter
+                out <= out + 1;
+            end
+        end
+        // If valid_count is 0, do nothing (counter holds its value)
+    end
+
+endmodule
+```
+
+### Edge Cases and Complex Scenarios
+1. **Reset Behavior**: The counter must correctly reset to 0 whenever `rst_n` is pulled low, regardless of the current state or value of `valid_count`. This ensures that the counter can be quickly set to a known state in any situation.
+
+2. **Maximum Count Wrap-around**: When the counter reaches its maximum value (11 in this case), it should wrap around to 0 on the next clock cycle where `valid_count` is high. This wrap-around logic is crucial for maintaining the count within the specified range.
+
+3. **Count Hold on Invalid `valid_count`**: When `valid_count` is low, the counter should maintain its current value, regardless of clock edges. This requires careful handling to ensure that the counter does not inadvertently change due to other conditions.
+
+4. **Glitch-free Output**: The output `out` should be stable and glitch-free. This is typically ensured by proper synchronous design practices, such as updating the output only at clock edges and based on stable input conditions.
+
+5. **Power-on State**: It's often important to consider the initial state of the counter when power is first applied, before any reset has been asserted. In many designs, it might be necessary to ensure that the counter initializes to a known state (like 0) upon power-up. This can be handled by initializing the register (`out`) in the declaration, though this depends on the synthesis tool and target FPGA/CPLD.
+
+6. **Clock Stability**: The design assumes that the clock signal (`clk`) is stable and free of glitches. Instabilities in the clock can lead to undefined behavior or miscounts.
+
+This implementation and the considerations listed ensure that the `counter_12` module will function correctly across various scenarios, adhering to the specified counting behavior and control mechanisms.
+
+
+edge_detect
+Certainly! Below is the Verilog code for the `edge_detect` module that detects rising and falling edges of a given input signal `a`. The module uses a simple edge detection mechanism by comparing the current value of `a` with its previous value, which is stored in a register. The outputs `rise` and `down` are set accordingly.
+
+```verilog
+module edge_detect(
+    input clk,       // Clock signal
+    input rst_n,     // Reset signal (active low)
+    input a,         // Input signal
+    output reg rise, // Output signal indicating a rising edge
+    output reg down  // Output signal indicating a falling edge
+);
+
+    // Register to store the previous state of 'a'
+    reg a_prev;
+
+    // Always block triggered on the positive edge of the clock or negative edge of reset
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            // Asynchronous reset: reset the outputs and the previous state register
+            rise <= 0;
+            down <= 0;
+            a_prev <= 0;
+        end else begin
+            // Check for a rising edge
+            if (a == 1 && a_prev == 0) begin
+                rise <= 1;
+            end else begin
+                rise <= 0;
+            end
+
+            // Check for a falling edge
+            if (a == 0 && a_prev == 1) begin
+                down <= 1;
+            end else begin
+                down <= 0;
+            end
+
+            // Update the previous state of 'a'
+            a_prev <= a;
+        end
+    end
+
+endmodule
+```
+
+### Explanation:
+1. **Inputs and Outputs**: The module has a clock (`clk`), an active-low reset (`rst_n`), and the input signal (`a`). It outputs two signals: `rise` and `down`.
+
+2. **State Storage**: The previous state of the input signal `a` is stored in `a_prev`. This is used to detect changes from the previous clock cycle.
+
+3. **Edge Detection**:
+   - **Rising Edge**: If the current value of `a` is 1 and the previous value was 0, it indicates a rising edge, so `rise` is set to 1.
+   - **Falling Edge**: If the current value of `a` is 0 and the previous value was 1, it indicates a falling edge, so `down` is set to 1.
+
+4. **Reset Behavior**: On a reset (when `rst_n` is low), the outputs `rise` and `down` are cleared to 0, and `a_prev` is also reset to 0 to ensure a consistent starting state.
+
+### Edge Cases and Considerations:
+- **Glitches in Input Signal**: If the input signal `a` is noisy or has glitches, it might cause false edge detections. Debouncing or filtering might be necessary before the signal is fed into this module.
+- **Reset Synchronization**: The reset is asynchronous, which helps in quickly putting the module into a known state irrespective of the clock.
+- **Clock Frequency**: The detection accuracy depends on the clock frequency relative to the rate of change of `a`. If `a` changes too quickly relative to the clock, edges might be missed.
+
+This module should be integrated into a larger system where the clock frequency and signal integrity have been appropriately considered to ensure reliable edge detection.
+
+
+freq_div
+Certainly! Below is the Verilog code for a frequency divider module named `freq_div` that takes a 100MHz input clock and generates three output clocks at 50MHz, 10MHz, and 1MHz. The module uses counters to divide the frequency of the input clock as specified.
+
+```verilog
+module freq_div(
+    input CLK_in,  // Input clock signal
+    input RST,     // Reset signal
+    output reg CLK_50,  // Output clock signal with frequency of CLK_in divided by 2
+    output reg CLK_10,  // Output clock signal with frequency of CLK_in divided by 10
+    output reg CLK_1    // Output clock signal with frequency of CLK_in divided by 100
+);
+
+// Internal counters for CLK_10 and CLK_1
+reg [2:0] cnt_10;  // 3-bit counter for dividing by 10
+reg [6:0] cnt_100; // 7-bit counter for dividing by 100
+
+// CLK_50 generation
+always @(posedge CLK_in or posedge RST) begin
+    if (RST) begin
+        CLK_50 <= 0;
+    end else begin
+        CLK_50 <= ~CLK_50;
+    end
+end
+
+// CLK_10 generation
+always @(posedge CLK_in or posedge RST) begin
+    if (RST) begin
+        CLK_10 <= 0;
+        cnt_10 <= 0;
+    end else begin
+        if (cnt_10 == 4) begin
+            CLK_10 <= ~CLK_10;
+            cnt_10 <= 0;
+        end else begin
+            cnt_10 <= cnt_10 + 1;
+        end
+    end
+end
+
+// CLK_1 generation
+always @(posedge CLK_in or posedge RST) begin
+    if (RST) begin
+        CLK_1 <= 0;
+        cnt_100 <= 0;
+    end else begin
+        if (cnt_100 == 49) begin
+            CLK_1 <= ~CLK_1;
+            cnt_100 <= 0;
+        end else begin
+            cnt_100 <= cnt_100 + 1;
+        end
+    end
+end
+
+endmodule
+```
+
+### Explanation:
+1. **CLK_50 Generation**: This is straightforward. The output `CLK_50` is toggled every clock cycle, effectively dividing the input clock frequency by 2.
+
+2. **CLK_10 Generation**: A 3-bit counter `cnt_10` is used. The output `CLK_10` is toggled every time the counter reaches 4 (i.e., every 5 clock cycles), which divides the input clock by 10.
+
+3. **CLK_1 Generation**: A 7-bit counter `cnt_100` is used. The output `CLK_1` is toggled every time the counter reaches 49 (i.e., every 50 clock cycles), which divides the input clock by 100.
+
+### Edge Cases and Considerations:
+- **Reset Behavior**: The reset (`RST`) is synchronous and active-high. When `RST` is asserted, all outputs are set to 0, and the counters are reset to 0.
+- **Counter Overflow**: The counters are designed to reset before they overflow, ensuring they count only within their intended ranges.
+- **Glitch-Free Outputs**: The outputs toggle only on the clock edges, ensuring glitch-free operation.
+
+This implementation should meet the requirements for generating the specified frequencies from a 100MHz input clock.
+
+
+fsm
+Certainly! Below is the Verilog code for a Mealy Finite State Machine (FSM) that detects the sequence `10011` on a single-bit input `IN`. The FSM outputs `MATCH = 1` when the sequence is detected, and `MATCH = 0` otherwise. The FSM resets on an active high reset signal `RST` and operates with each positive edge of the clock `CLK`.
+
+```verilog
+module fsm(
+    input IN,
+    input CLK,
+    input RST,
+    output reg MATCH
+);
+
+    // State encoding
+    parameter S0 = 3'b000, // Initial state
+              S1 = 3'b001, // Detected 1
+              S2 = 3'b010, // Detected 10
+              S3 = 3'b011, // Detected 100
+              S4 = 3'b100, // Detected 1001
+              S5 = 3'b101; // Detected 10011
+
+    // Current state and next state variables
+    reg [2:0] current_state, next_state;
+
+    // State transition and output logic
+    always @(posedge CLK or posedge RST) begin
+        if (RST) begin
+            current_state <= S0;
+            MATCH <= 1'b0;
+        end else begin
+            current_state <= next_state;
+        end
+    end
+
+    // Next state logic based on current state and input
+    always @(*) begin
+        case (current_state)
+            S0: next_state = (IN == 1'b1) ? S1 : S0;
+            S1: next_state = (IN == 1'b0) ? S2 : S1;
+            S2: next_state = (IN == 1'b0) ? S3 : S1;
+            S3: next_state = (IN == 1'b1) ? S4 : S0;
+            S4: next_state = (IN == 1'b1) ? S5 : S2;
+            S5: next_state = (IN == 1'b1) ? S1 : S2;
+            default: next_state = S0;
+        endcase
+    end
+
+    // Output logic
+    always @(*) begin
+        MATCH = (current_state == S5);
+    end
+
+endmodule
+```
+
+### Explanation:
+1. **State Encoding**: The FSM uses 3 bits to encode 6 states, from `S0` to `S5`. Each state represents a part of the sequence `10011` being detected.
+
+2. **State Transition Logic**:
+   - From `S0`, if `IN` is `1`, it transitions to `S1`. If `IN` is `0`, it stays in `S0`.
+   - From `S1`, if `IN` is `0`, it transitions to `S2`. If `IN` is `1`, it stays in `S1` (looping on itself if consecutive `1`s are detected).
+   - From `S2`, if `IN` is `0`, it transitions to `S3`. If `IN` is `1`, it goes back to `S1`.
+   - From `S3`, if `IN` is `1`, it transitions to `S4`. If `IN` is `0`, it resets to `S0`.
+   - From `S4`, if `IN` is `1`, it transitions to `S5`. If `IN` is `0`, it goes to `S2`.
+   - From `S5`, if `IN` is `1`, it transitions to `S1` (to detect overlapping sequences like `100111`). If `IN` is `0`, it goes to `S2`.
+
+3. **Output Logic**: The `MATCH` output is high only when the FSM is in state `S5`, indicating that the sequence `10011` has been detected.
+
+### Edge Cases:
+- **Reset Behavior**: On reset (`RST` high), the FSM returns to the initial state `S0` and `MATCH` is set to `0`.
+- **Overlapping Sequences**: The FSM can handle overlapping sequences like `1001110011` by transitioning appropriately from `S5` to either `S1` or `S2`.
+
+This implementation ensures that the FSM continuously checks for the sequence `10011` and can handle multiple occurrences and overlaps of the sequence within a stream of input bits.
+
+
+JC_counter
+Certainly! Below is the Verilog implementation of a 64-bit Johnson counter (also known as a torsional ring counter). This counter will follow the behavior you described, updating its state on every rising edge of the clock or on the falling edge of the reset signal.
+
+```verilog
+module JC_counter(
+    input clk,        // Clock signal
+    input rst_n,      // Active-low reset signal
+    output reg [63:0] Q  // 64-bit output representing the current count value
+);
+
+// Johnson counter behavior
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        // Reset condition: Set Q to 0
+        Q <= 64'b0;
+    end else begin
+        // Update counter based on the value of the least significant bit (Q[0])
+        if (Q[0] == 1'b0) begin
+            // If Q[0] is 0, shift right and insert 1 at MSB
+            Q <= {1'b1, Q[63:1]};
+        end else begin
+            // If Q[0] is 1, shift right and insert 0 at MSB
+            Q <= {1'b0, Q[63:1]};
+        end
+    end
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Module Definition**: The module `JC_counter` is defined with inputs `clk` (clock) and `rst_n` (active-low reset), and a 64-bit output `Q`.
+
+2. **Always Block**: The always block is triggered on the positive edge of the clock or the negative edge of the reset. This ensures that the counter updates synchronously with the clock and can be reset asynchronously.
+
+3. **Reset Logic**: Inside the always block, the first condition checks if `rst_n` is low (`!rst_n`). If true, the counter `Q` is reset to 0.
+
+4. **Counter Update Logic**:
+   - If `Q[0]` is 0, the counter performs a right shift and inserts a 1 at the most significant bit (MSB). This operation effectively "increments" the Johnson counter.
+   - If `Q[0]` is 1, the counter performs a right shift and inserts a 0 at the MSB. This operation effectively "decrements" the Johnson counter.
+
+### Edge Cases and Considerations:
+- **Reset Behavior**: The counter can be reset at any time regardless of the clock state, providing flexibility in control.
+- **Initial State**: On reset, the counter starts from all zeros, which is a valid state in the Johnson counter sequence.
+- **Full Cycle**: The counter will go through a complete cycle of 128 states (64 with MSB = 1 followed by 64 with MSB = 0) before repeating, which matches the behavior of a Johnson counter.
+
+This implementation should meet the requirements for a 64-bit Johnson counter as specified.
+
+
+multi_16bit
+Below is the Verilog code for a 16-bit unsigned multiplier using shift and accumulate operations. The module `multi_16bit` includes the necessary control signals and performs the multiplication operation as specified.
+
+```verilog
+module multi_16bit(
+    input clk,
+    input rst_n,
+    input start,
+    input [15:0] ain,
+    input [15:0] bin,
+    output reg [31:0] yout,
+    output reg done
+);
+
+// Internal registers
+reg [15:0] areg, breg;
+reg [31:0] yout_r;
+reg [4:0] i; // 5 bits to count from 0 to 16
+
+// Reset and start operations
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        // Reset all registers
+        areg <= 0;
+        breg <= 0;
+        yout_r <= 0;
+        i <= 0;
+        done <= 0;
+    end else begin
+        if (start) begin
+            if (i == 0) begin
+                // Load the registers with input values
+                areg <= ain;
+                breg <= bin;
+                yout_r <= 0;
+                done <= 0;
+            end else if (i <= 16) begin
+                // Perform shift and accumulate
+                if (areg[0]) begin
+                    yout_r <= yout_r + (breg << (i - 1));
+                end
+                // Shift the multiplicand right by 1 bit
+                areg <= areg >> 1;
+            end
+            // Increment the counter
+            i <= i + 1;
+        end else begin
+            // Reset the counter if start is not active
+            i <= 0;
+            done <= 0;
+        end
+
+        // Check if multiplication is done
+        if (i == 17) begin
+            done <= 1;
+            yout <= yout_r;
+            i <= 0; // Reset the counter to be ready for a new operation
+        end
+    end
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Initialization and Reset**: When the reset (`rst_n`) is active low, all internal registers are reset to zero, including the product register `yout_r`, the multiplicand and multiplier registers `areg` and `breg`, the counter `i`, and the `done` flag.
+
+2. **Start of Multiplication**: When the `start` signal is high, the module loads `ain` and `bin` into `areg` and `breg` respectively if `i` is zero. This marks the beginning of the multiplication process.
+
+3. **Shift and Accumulate**: For each clock cycle when `i` is between 1 and 16, the module checks the least significant bit of `areg`. If it is high, the module adds `breg` shifted left by `i-1` positions to `yout_r`. Then, `areg` is shifted right by one bit to prepare for the next cycle.
+
+4. **Completion**: When `i` reaches 17, the multiplication is complete. The `done` flag is set high, and the result `yout_r` is transferred to the output `yout`. The counter `i` is reset to zero to prepare for a new operation.
+
+### Edge Cases and Considerations:
+- **Zero Inputs**: The module should correctly handle cases where either `ain` or `bin` is zero. The result should be zero, and the operation should complete in 16 cycles.
+- **Maximum Values**: Multiplying two maximum 16-bit values (0xFFFF * 0xFFFF) should be handled without overflow in the 32-bit result register.
+- **Control Signal Timing**: Proper synchronization of the `start` signal is crucial. A new multiplication should not be initiated before the previous one completes unless explicitly reset.
+
+This implementation provides a basic structure for a 16-bit multiplier using shift and accumulate method, suitable for educational and simple practical applications.
+
+
+multi_booth_8bit
+Below is the Verilog implementation of an 8-bit Radix-4 Booth multiplier as per your specifications. This implementation includes the basic structure of the Booth's algorithm adapted for Radix-4 operation, which processes two bits of the multiplier at a time.
+
+```verilog
+module multi_booth_8bit(
+    input clk,
+    input reset,
+    input [7:0] a,
+    input [7:0] b,
+    output reg [15:0] p,
+    output reg rdy
+);
+
+reg [15:0] multiplier, multiplicand;
+reg [4:0] ctr;
+reg [1:0] booth_code;
+wire [15:0] sum, sub;
+
+// Sign extension for multiplicand and multiplier
+always @(posedge clk or posedge reset) begin
+    if (reset) begin
+        multiplier <= {{8{b[7]}}, b};
+        multiplicand <= {{8{a[7]}}, a};
+        p <= 0;
+        ctr <= 0;
+        rdy <= 0;
+    end else begin
+        if (ctr < 16) begin
+            // Calculate Booth code for current and next bit
+            booth_code = {multiplier[0], multiplier[1]};
+            
+            case (booth_code)
+                2'b01: p = p + multiplicand;   // +M
+                2'b10: p = p - multiplicand;   // -M
+                2'b11: p = p + (multiplicand << 1); // +2M
+                2'b00: p = p - (multiplicand << 1); // -2M
+                default: p = p;               // No operation
+            endcase
+            
+            // Shift operations
+            multiplicand = multiplicand << 2;
+            multiplier = multiplier >> 2;
+            ctr = ctr + 2;
+        end else if (ctr >= 16) begin
+            rdy <= 1;
+        end
+    end
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Initialization**: When reset is high, the multiplier and multiplicand are initialized with sign extension to handle negative numbers. The product register `p` and counter `ctr` are reset.
+
+2. **Multiplication Process**: On each clock cycle, if the reset is not active and the counter is less than 16:
+   - The Booth code is determined from the two least significant bits of the multiplier.
+   - Depending on the Booth code, the appropriate operation (addition or subtraction of the multiplicand or twice the multiplicand) is performed on the product `p`.
+   - The multiplicand is shifted left by 2 bits (doubling its value), and the multiplier is shifted right by 2 bits to process the next two bits.
+   - The counter increments by 2 since Radix-4 processes two bits at a time.
+
+3. **Completion**: Once the counter reaches 16, the multiplication is complete, and the `rdy` signal is set high to indicate readiness.
+
+### Edge Cases:
+- **Negative Numbers**: Sign extension handles negative inputs correctly.
+- **Zero Multiplicand or Multiplier**: The algorithm naturally handles zero values correctly, resulting in a zero product.
+- **Small Multiplier Values**: The shifting and addition/subtraction logic correctly handles cases where the multiplier has fewer significant bits.
+
+This implementation assumes a synchronous reset. Adjustments might be needed based on specific synthesis constraints or target FPGA/CPLD devices.
+
+
+multi_pipe_4bit
+Below is the Verilog code for a 4-bit unsigned number pipeline multiplier named `multi_pipe_4bit`. This design uses two levels of registers to store intermediate values and control the multiplication process, as specified.
+
+```verilog
+module multi_pipe_4bit(
+    input clk,
+    input rst_n,
+    input [3:0] mul_a,
+    input [3:0] mul_b,
+    output reg [7:0] mul_out
+);
+
+parameter size = 4;
+reg [7:0] partial_products[0:size-1];
+reg [7:0] intermediate_sum;
+
+// Generate partial products
+integer i;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        for (i = 0; i < size; i = i + 1) begin
+            partial_products[i] <= 0;
+        end
+        intermediate_sum <= 0;
+        mul_out <= 0;
+    end else begin
+        for (i = 0; i < size; i = i + 1) begin
+            if (mul_b[i])
+                partial_products[i] <= mul_a << i;
+            else
+                partial_products[i] <= 0;
+        end
+    end
+end
+
+// Calculate intermediate sum of partial products
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        intermediate_sum <= 0;
+    end else begin
+        intermediate_sum <= partial_products[0] + partial_products[1] + partial_products[2] + partial_products[3];
+    end
+end
+
+// Calculate final product
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        mul_out <= 0;
+    end else begin
+        mul_out <= intermediate_sum;
+    end
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Input and Output Ports**: The module has clock (`clk`), active-low reset (`rst_n`), two 4-bit inputs (`mul_a` and `mul_b`), and an 8-bit output (`mul_out`).
+
+2. **Partial Products Calculation**: On every positive clock edge or negative reset edge, the module calculates partial products based on the bits of `mul_b`. Each bit of `mul_b` determines whether the corresponding shifted version of `mul_a` is used or a zero is used.
+
+3. **Intermediate Sum Calculation**: The partial products are summed up in another register `intermediate_sum` on every clock edge, provided the reset is not active.
+
+4. **Final Product Calculation**: The final product `mul_out` is updated with the value of `intermediate_sum` on every clock edge, again provided the reset is not active.
+
+### Edge Cases and Considerations:
+- **Reset Behavior**: The design ensures that all registers are cleared to zero when a reset occurs.
+- **Clock Dependency**: All operations are synchronized to the rising edge of the clock, ensuring consistent timing for updates.
+- **Bit Width Management**: The partial products and sums are managed within an 8-bit width to accommodate the maximum possible value from multiplying two 4-bit numbers.
+
+This design should meet the requirements for a basic 4-bit unsigned number pipeline multiplier. Further optimizations or modifications might be needed based on specific performance or area constraints.
+
+
+multi_pipe_8bit
+Below is a Verilog implementation of an 8-bit unsigned multiplier using a pipelined architecture. This design includes the necessary registers and logic to handle the multiplication in a pipelined manner, ensuring that the output is updated every clock cycle once the pipeline is filled.
+
+```verilog
+module multi_pipe_8bit(
+    input clk,
+    input rst_n,
+    input mul_en_in,
+    input [7:0] mul_a,
+    input [7:0] mul_b,
+    output reg mul_en_out,
+    output reg [15:0] mul_out
+);
+
+// Internal registers for pipeline stages
+reg [7:0] mul_a_reg, mul_b_reg;
+reg [15:0] partial_products[7:0];
+reg [15:0] sum_stage1, sum_stage2, sum_stage3;
+reg mul_en_reg;
+
+// Pipeline stage 1: Register inputs and enable signal
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        mul_a_reg <= 0;
+        mul_b_reg <= 0;
+        mul_en_reg <= 0;
+    end else if (mul_en_in) begin
+        mul_a_reg <= mul_a;
+        mul_b_reg <= mul_b;
+        mul_en_reg <= mul_en_in;
+    end
+end
+
+// Pipeline stage 2: Generate partial products
+integer i;
+always @(posedge clk) begin
+    for (i = 0; i < 8; i++) begin
+        partial_products[i] <= mul_b_reg[i] ? (mul_a_reg << i) : 16'd0;
+    end
+end
+
+// Pipeline stage 3: Sum partial products
+always @(posedge clk) begin
+    sum_stage1 <= partial_products[0] + partial_products[1];
+    sum_stage2 <= partial_products[2] + partial_products[3];
+    sum_stage3 <= partial_products[4] + partial_products[5];
+end
+
+// Pipeline stage 4: Final sum and output enable
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        mul_out <= 0;
+        mul_en_out <= 0;
+    end else begin
+        mul_out <= sum_stage1 + sum_stage2 + sum_stage3 + partial_products[6] + partial_products[7];
+        mul_en_out <= mul_en_reg;
+    end
+end
+
+endmodule
+```
+
+### Key Features and Considerations:
+1. **Pipeline Stages**: The design is divided into multiple pipeline stages to ensure that each stage performs a part of the multiplication process. This helps in achieving higher throughput by processing multiple multiplications in different stages simultaneously.
+
+2. **Reset Behavior**: The design includes an active-low reset (`rst_n`) which initializes all registers when asserted. This is crucial for ensuring the system starts in a known state.
+
+3. **Enable Signal Handling**: The `mul_en_in` signal controls whether new inputs are loaded into the pipeline. This signal is also pipelined through `mul_en_reg` to synchronize with the output data.
+
+4. **Edge Cases**: 
+   - **Zero Multiplication**: The design inherently handles multiplication by zero correctly, as the partial products will be zero if any operand is zero.
+   - **Sequential Operations**: Since the pipeline is continuously processing data, sequential multiplications can be fed into the module without waiting for the previous multiplication to complete.
+
+5. **Performance**: The pipelined architecture allows for one multiplication result per clock cycle (after an initial latency of filling the pipeline), which is a significant improvement over a non-pipelined approach.
+
+This design can be synthesized and tested in a simulation environment to verify its functionality and performance. Adjustments might be necessary based on specific synthesis constraints or performance goals.
+
+
+parallel2serial
+Certainly! Below is a Verilog module that implements the parallel-to-serial conversion as specified. This module takes a 4-bit parallel input and serializes it, outputting the most significant bit first and then the remaining bits in order over the next three clock cycles.
+
+```verilog
+module parallel2serial(
+    input clk,
+    input rst_n,
+    input [3:0] d,
+    output reg valid_out,
+    output reg dout
+);
+
+    reg [1:0] cnt; // 2-bit counter to track the bit position
+    reg [3:0] data; // Register to hold the current data
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            // Reset the state
+            cnt <= 2'b00;
+            data <= 4'b0000;
+            valid_out <= 1'b0;
+            dout <= 1'b0;
+        end else begin
+            if (cnt == 2'b11) begin
+                // Load new data and reset counter
+                data <= d;
+                cnt <= 2'b00;
+                valid_out <= 1'b1; // Valid output available
+                dout <= d[3]; // Output MSB
+            end else begin
+                // Shift data and increment counter
+                data <= {data[2:0], 1'b0}; // Shift left
+                dout <= data[3]; // Output the next bit
+                cnt <= cnt + 1;
+                valid_out <= 1'b1; // Continue outputting valid data
+            end
+        end
+    end
+endmodule
+```
+
+### Explanation:
+1. **Counter (`cnt`)**: This 2-bit counter keeps track of which bit of the data is being output. It resets when it reaches 3 (binary `11`), indicating that all bits have been output and new data can be loaded.
+
+2. **Data Register (`data`)**: This register holds the current data being serialized. It is loaded with new input data when the counter resets.
+
+3. **Output (`dout`)**: This is the serial output bit. It outputs the most significant bit of the data first, followed by the next bits as the data is shifted left.
+
+4. **Valid Output (`valid_out`)**: This signal indicates when the `dout` is holding valid data. It is set high on every clock cycle except when the module is in a reset state.
+
+### Edge Cases and Considerations:
+- **Reset Behavior**: The module should correctly initialize on reset (`rst_n` = 0), setting all outputs and internal states to their initial conditions.
+- **Continuous Operation**: The module should handle continuous streams of input data correctly, loading new data immediately after the previous data has been fully output.
+- **Clock Dependency**: The module's operation is entirely dependent on the rising edge of the clock signal, ensuring synchronous behavior.
+
+This implementation ensures that the module outputs each bit of the input data in sequence, starting from the most significant bit, and signals when the output data is valid.
+
+
+pe
+Certainly! Below is the Verilog code for a Multiplying Accumulator (MAC) Processing Element (PE) that you described. This module will multiply two 32-bit integers `a` and `b`, and accumulate the result in a register `c`. The accumulation will reset when the reset signal `rst` is high.
+
+```verilog
+module pe(
+    input clk,          // Clock signal
+    input rst,          // Reset signal, active high
+    input [31:0] a,     // 32-bit input operand A
+    input [31:0] b,     // 32-bit input operand B
+    output reg [31:0] c // 32-bit output for accumulated result
+);
+
+    // Temporary register to hold the product of a and b
+    reg [63:0] product;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            // Reset the accumulator to 0 when rst is high
+            c <= 32'b0;
+        end else begin
+            // Calculate the product of a and b
+            product = a * b;
+            // Accumulate the result
+            c <= c + product[31:0]; // Assuming lower 32 bits for accumulation
+        end
+    end
+endmodule
+```
+
+### Key Points and Considerations:
+1. **Reset Behavior**: The accumulator `c` is reset to 0 whenever `rst` is high. This is handled by checking the `rst` signal on every positive edge of the clock.
+
+2. **Multiplication and Accumulation**: The multiplication result is stored in a 64-bit register `product` to handle potential overflow from multiplying two 32-bit numbers. However, for the purpose of this example, only the lower 32 bits of the product are used for accumulation. Depending on the application, you might want to handle the full 64-bit result or implement overflow detection.
+
+3. **Clock Edge Triggering**: The operations inside the module are triggered on the positive edge of the clock, which is typical for synchronous designs to ensure stable data processing aligned with clock cycles.
+
+4. **Edge Cases**:
+   - **Overflow**: As mentioned, this design naively assumes that overflow does not need special handling beyond the 32-bit boundary. In a real application, you might need to implement overflow detection or extend the accumulator size.
+   - **Large Multiplications**: The product of two large 32-bit numbers might exceed the size of the 32-bit accumulator. This design only accumulates the lower 32 bits of the product. If higher precision is needed, adjustments should be made.
+   - **Reset Glitches**: If `rst` is not properly debounced or is noisy, it could cause improper resets. Ensure that the reset signal is clean and stable.
+
+This module provides a basic structure for a multiplying accumulator. Depending on the specific requirements and operating conditions of your application, further enhancements or modifications might be necessary.
+
+
+pulse_detect
+Certainly! Below is the Verilog code for the `pulse_detect` module that detects a pulse as defined (a sequence of 010) in the input signal `data_in` and outputs a high signal on `data_out` at the end of each detected pulse.
+
+```verilog
+module pulse_detect(
+    input clk,
+    input rst_n,
+    input data_in,
+    output reg data_out
+);
+
+// State declaration
+reg [1:0] state;
+reg [1:0] next_state;
+
+// State encoding
+localparam S0 = 2'b00; // Waiting for 0->1 transition
+localparam S1 = 2'b01; // Waiting for 1->0 transition
+localparam S2 = 2'b10; // Pulse detected, output high
+
+// State transition logic
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        state <= S0;
+        data_out <= 1'b0;
+    end else begin
+        state <= next_state;
+    end
+end
+
+// Next state logic
+always @(*) begin
+    case (state)
+        S0: begin
+            if (data_in == 1'b1) begin
+                next_state = S1;
+            end else begin
+                next_state = S0;
+            end
+            data_out = 1'b0;
+        end
+        S1: begin
+            if (data_in == 1'b0) begin
+                next_state = S2;
+            end else begin
+                next_state = S1;
+            end
+            data_out = 1'b0;
+        end
+        S2: begin
+            next_state = S0;
+            data_out = 1'b1;
+        end
+        default: begin
+            next_state = S0;
+            data_out = 1'b0;
+        end
+    endcase
+end
+
+endmodule
+```
+
+### Explanation:
+1. **State Encoding**: The state machine uses three states:
+   - `S0`: Initial state, waiting for a transition from 0 to 1.
+   - `S1`: Waiting for a transition from 1 to 0.
+   - `S2`: Pulse detected, output a high signal for one cycle.
+
+2. **State Transition Logic**: This block updates the state based on the clock and reset signals. If the reset is active (`rst_n` is low), it resets the state to `S0` and sets `data_out` to 0. Otherwise, it transitions to the next state as determined by the combinational logic block.
+
+3. **Next State Logic**: This combinational logic block determines the next state based on the current state and the input `data_in`. It also sets the `data_out` signal. When in state `S2`, `data_out` is set to 1, indicating the end of a pulse.
+
+This module effectively captures the pulse pattern described and outputs a signal at the end of each pulse.
+
+
+radix2_div
+Below is a Verilog implementation of a simplified radix-2 divider module. This module uses a finite state machine (FSM) to manage the division process. The module is parameterized to allow flexibility in operand sizes.
+
+```verilog
+module radix2_div #(
+    parameter DATAWIDTH = 8
+)(
+    input clk,
+    input rstn,
+    input en,
+    input [DATAWIDTH-1:0] dividend,
+    input [DATAWIDTH-1:0] divisor,
+    output reg ready,
+    output reg [DATAWIDTH-1:0] quotient,
+    output reg [DATAWIDTH-1:0] remainder,
+    output reg vld_out
+);
+
+// State definitions
+localparam IDLE  = 2'b00,
+           SUB   = 2'b01,
+           SHIFT = 2'b10,
+           DONE  = 2'b11;
+
+// FSM registers
+reg [1:0] current_state, next_state;
+
+// Data registers
+reg [DATAWIDTH-1:0] dividend_e, divisor_e;
+reg [DATAWIDTH-1:0] quotient_e;
+reg [DATAWIDTH*2-1:0] remainder_e; // Extended to hold shifts
+reg [DATAWIDTH-1:0] count;
+
+// State transition logic
+always @(posedge clk or negedge rstn) begin
+    if (!rstn) begin
+        current_state <= IDLE;
+    end else begin
+        current_state <= next_state;
+    end
+end
+
+// Next state logic and operations
+always @(*) begin
+    case (current_state)
+        IDLE: begin
+            if (en) next_state = SUB;
+            else next_state = IDLE;
+        end
+        SUB: begin
+            if (count == 0) next_state = DONE;
+            else next_state = SHIFT;
+        end
+        SHIFT: begin
+            next_state = SUB;
+        end
+        DONE: begin
+            next_state = IDLE;
+        end
+        default: next_state = IDLE;
+    endcase
+end
+
+// Operations within each state
+always @(posedge clk or negedge rstn) begin
+    if (!rstn) begin
+        dividend_e <= 0;
+        divisor_e <= 0;
+        quotient_e <= 0;
+        remainder_e <= 0;
+        count <= 0;
+        ready <= 1;
+        vld_out <= 0;
+    end else begin
+        case (current_state)
+            IDLE: begin
+                ready <= 1;
+                vld_out <= 0;
+                if (en) begin
+                    dividend_e <= dividend;
+                    divisor_e <= divisor;
+                    quotient_e <= 0;
+                    remainder_e <= 0;
+                    count <= DATAWIDTH;
+                    ready <= 0;
+                end
+            end
+            SUB: begin
+                if (remainder_e[DATAWIDTH*2-1:DATAWIDTH] >= divisor_e) begin
+                    remainder_e[DATAWIDTH*2-1:DATAWIDTH] = remainder_e[DATAWIDTH*2-1:DATAWIDTH] - divisor_e;
+                    quotient_e[DATAWIDTH-1] = 1;
+                end
+                remainder_e = remainder_e << 1;
+                remainder_e[0] = dividend_e[DATAWIDTH-1];
+                dividend_e = dividend_e << 1;
+                count = count - 1;
+            end
+            SHIFT: begin
+                quotient_e = quotient_e << 1;
+            end
+            DONE: begin
+                quotient = quotient_e;
+                remainder = remainder_e[DATAWIDTH-1:0];
+                vld_out <= 1;
+            end
+        endcase
+    end
+end
+
+endmodule
+```
+
+### Key Points and Considerations:
+1. **Reset Logic**: The module uses an asynchronous reset (`rstn`) to reset all internal states and registers.
+2. **State Machine**: The FSM handles the division process across multiple clock cycles, transitioning through states for subtraction, shifting, and completion.
+3. **Edge Cases**: The module should handle cases where the divisor is zero. This implementation does not explicitly handle divide-by-zero errors and will need additional logic to manage such cases safely.
+4. **Output Validity**: The `vld_out` signal indicates when the results (quotient and remainder) are valid and can be read.
+5. **Readiness**: The `ready` signal indicates when the module is ready to accept new inputs.
+
+This implementation provides a basic structure and could be extended with more sophisticated error handling and optimizations for specific use cases.
+
+
+RAM
+Certainly! Below is the Verilog code for a dual-port RAM with the specifications you provided. This implementation includes separate processes for handling read and write operations, and initializes all memory locations to zero upon reset.
+
+```verilog
+module RAM (
+    input clk,
+    input rst_n,
+    input write_en,
+    input [2:0] write_addr,  // 3-bit address for 8 depth
+    input [5:0] write_data,  // 6-bit data width
+    input read_en,
+    input [2:0] read_addr,   // 3-bit address for 8 depth
+    output reg [5:0] read_data  // 6-bit data width
+);
+
+parameter WIDTH = 6;
+parameter DEPTH = 8;
+
+// Memory array
+reg [WIDTH-1:0] ram [DEPTH-1:0];
+
+// Write operation
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        // Reset: Initialize RAM to 0
+        integer i;
+        for (i = 0; i < DEPTH; i = i + 1) begin
+            ram[i] <= 6'b000000;
+        end
+    end else if (write_en) begin
+        // Write data to RAM
+        ram[write_addr] <= write_data;
+    end
+end
+
+// Read operation
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        // Reset: Clear read_data
+        read_data <= 6'b000000;
+    end else if (read_en) begin
+        // Read data from RAM
+        read_data <= ram[read_addr];
+    end else begin
+        // If read is not enabled, output does not change
+        // Optionally, you can clear the read_data if needed
+        // read_data <= 6'b000000;
+    end
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Module Declaration**: The module `RAM` is declared with inputs for clock, reset, write and read controls, and outputs for read data.
+2. **Parameters**: `WIDTH` and `DEPTH` are defined as 6 and 8, respectively.
+3. **Memory Array**: A memory array `ram` is declared with 8 locations, each capable of storing a 6-bit value.
+4. **Write Operation**: An always block handles the write operations. It checks for a reset condition to initialize the RAM to zeros. If the write enable (`write_en`) is high, it writes the `write_data` to the `ram` at the `write_addr`.
+5. **Read Operation**: Another always block handles the read operations. Upon reset, it clears the `read_data`. If the read enable (`read_en`) is high, it assigns the value from `ram` at `read_addr` to `read_data`.
+
+### Edge Cases and Considerations:
+- **Simultaneous Read and Write**: If a read and write occur simultaneously at the same address, the read operation will output the data written in the same cycle due to the non-blocking assignments.
+- **Reset Behavior**: Both read and write data are cleared on reset.
+- **Address and Data Validity**: Assumes that the addresses and data inputs are always valid and within the specified range.
+
+This implementation should meet the requirements for a basic dual-port RAM in Verilog as specified.
+
+
+right_shifter
+Certainly! Below is the Verilog code for the `right_shifter` module you described. This module takes a 1-bit input and shifts it into an 8-bit register from the most significant bit (MSB) to the least significant bit (LSB) on each rising edge of the clock. The register is initialized to zero and shifts right on each clock edge, inserting the input bit `d` at the MSB.
+
+```verilog
+module right_shifter(
+    input clk,  // Clock signal
+    input d,    // Input data bit to be shifted into q
+    output reg [7:0] q  // 8-bit output register
+);
+
+// Initialize the register q to 0
+initial begin
+    q = 8'b00000000;
+end
+
+// On each rising edge of the clock, shift q right and insert d at MSB
+always @(posedge clk) begin
+    q <= {d, q[7:1]};  // Concatenate d with the 7 MSBs of q shifted right
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Module Definition**: The module `right_shifter` is defined with inputs `clk` and `d`, and an output `q` which is an 8-bit register.
+
+2. **Initialization**: The `initial` block sets `q` to zero when the simulation starts. This ensures that the register starts from a known state.
+
+3. **Shifting Logic**: Inside the `always` block, which triggers on the positive edge of the clock (`posedge clk`), the register `q` is updated. The expression `{d, q[7:1]}` constructs a new 8-bit value where:
+   - `d` becomes the new MSB (`q[7]`).
+   - The previous values of `q[7]` to `q[1]` are shifted right to become `q[6]` to `q[0]`.
+
+### Edge Cases and Considerations:
+- **Clock Stability**: Ensure that the clock signal is stable and clean to avoid metastability issues in the register.
+- **Reset Behavior**: Currently, the module lacks a reset mechanism. In practical scenarios, it's often useful to include a reset signal to reinitialize the register during operation.
+- **Input Glitches**: If the input `d` is susceptible to noise or glitches, consider debouncing or synchronizing `d` to the clock domain to prevent erroneous shifts.
+
+### Enhancements:
+For a more robust design, consider adding a synchronous reset input to clear the register during operation, which can be particularly useful during debugging or specific application requirements.
+
+```verilog
+module right_shifter(
+    input clk,
+    input rst_n,  // Active low reset
+    input d,
+    output reg [7:0] q
+);
+
+// Reset or shift logic
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n)
+        q <= 8'b00000000;  // Clear q on reset
+    else
+        q <= {d, q[7:1]};  // Shift right and insert d at MSB
+end
+
+endmodule
+```
+
+This enhanced version includes a reset signal `rst_n`, which clears the register `q` when asserted low.
+
+
+serial2parallel
+Certainly! Below is the Verilog code for a serial-to-parallel converter module as described. This module will convert 8 serial bits into a single 8-bit parallel output. The module uses a counter to track the number of bits received and assembles them into an 8-bit word.
+
+```verilog
+module serial2parallel (
+    input clk,
+    input rst_n,
+    input din_serial,
+    input din_valid,
+    output reg [7:0] dout_parallel,
+    output reg dout_valid
+);
+
+    // Internal counter to track the number of bits received
+    reg [2:0] cnt;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            // Reset the counter and outputs
+            cnt <= 3'b000;
+            dout_parallel <= 8'b00000000;
+            dout_valid <= 1'b0;
+        end else begin
+            if (din_valid) begin
+                // Shift the serial data into the parallel output register
+                dout_parallel <= {dout_parallel[6:0], din_serial};
+
+                // Increment the counter
+                cnt <= cnt + 1;
+
+                // Check if 8 bits have been received
+                if (cnt == 3'b111) begin
+                    // Set the valid output high and reset the counter
+                    dout_valid <= 1'b1;
+                    cnt <= 3'b000;
+                end else begin
+                    // Keep the valid output low until 8 bits are received
+                    dout_valid <= 1'b0;
+                end
+            end else begin
+                // If din_valid is not high, do not count or shift
+                dout_valid <= 1'b0;
+            end
+        end
+    end
+
+endmodule
+```
+
+### Key Points and Edge Cases to Consider:
+1. **Reset Behavior**: The module should properly reset the counter and outputs when `rst_n` is asserted low.
+2. **Validity of Input**: The module only processes input bits when `din_valid` is high. If `din_valid` is low, the module should not alter the counter or the output data.
+3. **Counter Wrap-around**: The counter resets after reaching 7 (binary 111), which corresponds to the eighth bit being processed.
+4. **Output Validity**: `dout_valid` is only set high when a complete set of 8 bits has been received. This signal is crucial for downstream logic to know when the data is ready.
+5. **Clock Domain**: The module operates solely on the positive edge of the clock and is sensitive to the reset signal's negative edge.
+
+This implementation assumes that the input data rate matches the clock frequency when `din_valid` is high, and that there are no gaps in the data (i.e., `din_valid` should remain high for exactly 8 clock cycles for each valid byte of data). If the input data rate or validity pattern differs, additional logic might be required to handle such scenarios.
+
+
+signal_generator
+Certainly! Below is the Verilog code for a Triangle Wave signal generator module named `signal_generator`. This module generates a waveform by incrementally increasing and decreasing a 5-bit signal named `wave` between 0 and 31.
+
+```verilog
+module signal_generator(
+    input clk,        // Clock signal
+    input rst_n,      // Active-low reset signal
+    output reg [4:0] wave // 5-bit output waveform signal
+);
+
+    // State register to control the waveform generation
+    reg state; // 0 for incrementing, 1 for decrementing
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            // Reset condition
+            wave <= 5'b0; // Reset wave to 0
+            state <= 0;   // Set state to incrementing
+        end else begin
+            case (state)
+                0: begin
+                    // State 0: Increment wave
+                    if (wave == 31) begin
+                        state <= 1; // Change state to decrementing
+                    end else begin
+                        wave <= wave + 1; // Increment wave
+                    end
+                end
+                1: begin
+                    // State 1: Decrement wave
+                    if (wave == 0) begin
+                        state <= 0; // Change state to incrementing
+                    end else begin
+                        wave <= wave - 1; // Decrement wave
+                    end
+                end
+            endcase
+        end
+    end
+
+endmodule
+```
+
+### Explanation:
+1. **Module Definition**: The module `signal_generator` has three ports: `clk` (clock), `rst_n` (active-low reset), and `wave` (5-bit output waveform).
+
+2. **Registers**:
+   - `wave`: A 5-bit register that holds the current value of the waveform.
+   - `state`: A 1-bit register that indicates the current state of the waveform generation (0 for incrementing, 1 for decrementing).
+
+3. **Always Block**:
+   - Triggered on the positive edge of the clock (`posedge clk`) or the negative edge of the reset signal (`negedge rst_n`).
+   - If the reset is active (`!rst_n`), both `wave` and `state` are reset to 0.
+   - The waveform generation is controlled using a `case` statement based on the current `state`.
+
+4. **Waveform Generation**:
+   - **State 0 (Incrementing)**: The `wave` is incremented until it reaches 31. Upon reaching 31, the state transitions to 1 (decrementing).
+   - **State 1 (Decrementing)**: The `wave` is decremented until it reaches 0. Upon reaching 0, the state transitions back to 0 (incrementing).
+
+### Edge Cases and Considerations:
+- **Reset Behavior**: Ensure that the system correctly initializes on reset.
+- **Boundary Conditions**: Proper handling when `wave` reaches the maximum (31) and minimum (0) values to switch states correctly.
+- **Clock Stability**: The module assumes a stable clock for proper operation.
+
+This implementation provides a continuous triangle wave, cycling between 0 and 31, which can be used in various applications requiring such a waveform.
+
+
+synchronizer
+Below is the Verilog code for the `synchronizer` module as described. This module synchronizes a 4-bit data input from one clock domain to another using a multi-bit MUX-based approach, ensuring that the data is stable and valid when transferred across clock domains.
+
+```verilog
+module synchronizer(
+    input wire clk_a,       // Clock signal A
+    input wire clk_b,       // Clock signal B
+    input wire arstn,       // Active-low reset signal A
+    input wire brstn,       // Active-low reset signal B
+    input wire [3:0] data_in,  // 4-bit input data signal
+    input wire data_en,     // Input enable signal
+    output reg [3:0] dataout  // 4-bit output data signal
+);
+
+    // Internal registers for data and enable signal synchronization
+    reg [3:0] data_reg;
+    reg en_data_reg;
+    reg en_clap_one, en_clap_two;
+
+    // Synchronize data and enable signal on clk_a domain
+    always @(posedge clk_a or negedge arstn) begin
+        if (!arstn) begin
+            data_reg <= 4'b0000;
+            en_data_reg <= 1'b0;
+        end else begin
+            data_reg <= data_in;
+            en_data_reg <= data_en;
+        end
+    end
+
+    // Synchronize enable signal across clk_b domain
+    always @(posedge clk_b or negedge brstn) begin
+        if (!brstn) begin
+            en_clap_one <= 1'b0;
+            en_clap_two <= 1'b0;
+        end else begin
+            en_clap_one <= en_data_reg;
+            en_clap_two <= en_clap_one;
+        end
+    end
+
+    // Assign output data on clk_b domain based on synchronized enable signal
+    always @(posedge clk_b or negedge brstn) begin
+        if (!brstn) begin
+            dataout <= 4'b0000;
+        end else if (en_clap_two) begin
+            dataout <= data_reg;
+        end
+    end
+
+endmodule
+```
+
+### Explanation:
+1. **Data and Enable Synchronization on clk_a**: The `data_reg` and `en_data_reg` are updated on the positive edge of `clk_a` or when `arstn` is asserted low. This ensures that the data and enable signal are captured and held stable in the clk_a domain.
+
+2. **Enable Signal Synchronization on clk_b**: Two flip-flops (`en_clap_one` and `en_clap_two`) are used to synchronize the enable signal to the clk_b domain. This double-flop synchronization helps mitigate metastability issues when crossing clock domains.
+
+3. **Output Data Assignment on clk_b**: The output `dataout` is updated on the positive edge of `clk_b` based on the state of `en_clap_two`. If `en_clap_two` is high, indicating that the enable signal was stable and high for at least two clk_b cycles, the data from `data_reg` is transferred to `dataout`.
+
+### Edge Cases and Considerations:
+- **Reset Conditions**: Both `arstn` and `brstn` are considered to ensure that the module can be properly reset in either clock domain.
+- **Stability of Enable Signal**: The enable signal is held high for at least 3 clk_b cycles as per the requirement, and the synchronization ensures it is stable before allowing data transfer.
+- **Data Change Frequency**: The low frequency of data change (at least 10 clk_b cycles between changes) is compatible with this design, as the data is only updated in the clk_a domain and transferred when enabled.
+
+This design should meet the specified requirements for synchronizing a 4-bit data signal across two different clock domains with an enable-controlled update mechanism.
+
+
+alu
+Below is a Verilog implementation of an ALU for a 32-bit MIPS-ISA CPU, as per the specifications you provided. This implementation includes handling for various arithmetic and logical operations, including special cases for shift and set-less-than operations.
+
+```verilog
+module alu(
+    input [31:0] a,
+    input [31:0] b,
+    input [5:0] aluc,
+    output reg [31:0] r,
+    output zero,
+    output reg carry,
+    output reg negative,
+    output reg overflow,
+    output reg flag
+);
+
+    // Define operation codes
+    parameter ADD  = 6'b100000;
+    parameter ADDU = 6'b100001;
+    parameter SUB  = 6'b100010;
+    parameter SUBU = 6'b100011;
+    parameter AND  = 6'b100100;
+    parameter OR   = 6'b100101;
+    parameter XOR  = 6'b100110;
+    parameter NOR  = 6'b100111;
+    parameter SLT  = 6'b101010;
+    parameter SLTU = 6'b101011;
+    parameter SLL  = 6'b000000;
+    parameter SRL  = 6'b000010;
+    parameter SRA  = 6'b000011;
+    parameter SLLV = 6'b000100;
+    parameter SRLV = 6'b000110;
+    parameter SRAV = 6'b000111;
+    parameter LUI  = 6'b001111;
+
+    // Internal signals
+    wire signed [31:0] signed_a = a;
+    wire signed [31:0] signed_b = b;
+    wire [31:0] result;
+    assign zero = (result == 32'b0);
+
+    always @(*) begin
+        carry = 0;
+        overflow = 0;
+        flag = 0;
+        case (aluc)
+            ADD: begin
+                {carry, r} = a + b;
+                overflow = (signed_a[31] == signed_b[31]) && (signed_a[31] != r[31]);
+            end
+            ADDU: begin
+                r = a + b;
+            end
+            SUB: begin
+                {carry, r} = a - b;
+                overflow = (signed_a[31] != signed_b[31]) && (signed_a[31] != r[31]);
+            end
+            SUBU: begin
+                r = a - b;
+            end
+            AND: begin
+                r = a & b;
+            end
+            OR: begin
+                r = a | b;
+            end
+            XOR: begin
+                r = a ^ b;
+            end
+            NOR: begin
+                r = ~(a | b);
+            end
+            SLT: begin
+                r = (signed_a < signed_b) ? 32'b1 : 32'b0;
+                flag = 1;
+            end
+            SLTU: begin
+                r = (a < b) ? 32'b1 : 32'b0;
+                flag = 1;
+            end
+            SLL: begin
+                r = b << a[4:0];
+            end
+            SRL: begin
+                r = b >> a[4:0];
+            end
+            SRA: begin
+                r = signed_b >>> a[4:0];
+            end
+            SLLV: begin
+                r = b << a[4:0];
+            end
+            SRLV: begin
+                r = b >> a[4:0];
+            end
+            SRAV: begin
+                r = signed_b >>> a[4:0];
+            end
+            LUI: begin
+                r = {b[15:0], 16'b0};
+            end
+            default: begin
+                r = 32'bz;
+            end
+        endcase
+        negative = r[31];
+    end
+
+    assign result = r;
+
+endmodule
+```
+
+### Explanation:
+1. **Input and Output Ports**: The module has two 32-bit inputs `a` and `b`, a 6-bit input `aluc` for the operation code, and outputs `r`, `zero`, `carry`, `negative`, `overflow`, and `flag`.
+
+2. **Parameters**: Operation codes are defined using parameters for clarity and ease of modification.
+
+3. **Internal Logic**:
+   - The ALU operations are handled inside an `always @(*)` block, which ensures combinational logic.
+   - The operations are selected using a `case` statement based on the `aluc` input.
+   - For arithmetic operations like ADD and SUB, overflow and carry are calculated.
+   - For logical operations, straightforward bitwise operations are performed.
+   - Shift operations use the lower 5 bits of `a` as the shift amount.
+   - The `LUI` operation handles loading an immediate value into the upper half of the register.
+   - The `SLT` and `SLTU` operations set the `flag` output.
+
+4. **Outputs**:
+   - The `zero` output is a wire that checks if the result is zero.
+   - The `negative` output indicates if the result is negative (useful for signed operations).
+   - The `carry`, `overflow`, and `flag` are set based on the operation performed.
+
+This implementation covers the basic functionality expected from an ALU in a MIPS architecture, handling both arithmetic and logical operations, including special instructions like shift and set-less-than.
+
+
+div_16bit
+Certainly! Below is a Verilog implementation of a 16-bit divider module where the dividend is 16-bit and the divisor is 8-bit. The module follows the specified algorithm to compute the quotient and remainder using combinational logic.
+
+```verilog
+module div_16bit(
+    input [15:0] A,  // 16-bit dividend
+    input [7:0] B,   // 8-bit divisor
+    output reg [15:0] result,  // 16-bit quotient
+    output reg [15:0] odd      // 16-bit remainder
+);
+
+// Internal registers to hold intermediate values
+reg [15:0] dividend;
+reg [7:0] divisor;
+reg [15:0] quotient;
+reg [15:0] remainder;
+reg [7:0] high_bits;
+integer i;
+
+always @(*) begin
+    if (B == 0) begin
+        // Handle division by zero case
+        quotient = 16'hFFFF;  // Max value to indicate error
+        remainder = A;        // Remainder is the dividend itself
+    end else begin
+        dividend = A;
+        divisor = B;
+        quotient = 0;
+        remainder = 0;
+
+        // Perform division algorithm
+        for (i = 15; i >= 0; i = i - 1) begin
+            // Shift remainder left by 1 bit and bring down the next bit of the dividend
+            remainder = (remainder << 1) | (dividend[i]);
+
+            // Compare the high bits of remainder with the divisor
+            if (remainder[15:8] >= divisor) begin
+                remainder = remainder - (divisor << 8);
+                quotient[i] = 1'b1;
+            end else begin
+                quotient[i] = 1'b0;
+            end
+        end
+    end
+
+    // Assign the outputs
+    result = quotient;
+    odd = remainder;
+end
+
+endmodule
+```
+
+### Explanation:
+1. **Inputs and Outputs**: The module has two inputs, `A` (16-bit dividend) and `B` (8-bit divisor), and two outputs, `result` (16-bit quotient) and `odd` (16-bit remainder).
+
+2. **Internal Registers**: Several registers are used to hold intermediate values during the computation.
+
+3. **Division Algorithm**:
+   - The algorithm checks for division by zero. If the divisor is zero, it sets the quotient to a maximum value (indicative of an error) and the remainder to the dividend.
+   - The division is performed bit by bit from the most significant bit (MSB) to the least significant bit (LSB). The remainder is shifted left, and the current bit of the dividend is brought down.
+   - If the high bits of the remainder (after shifting) are greater than or equal to the divisor, the divisor is subtracted from these high bits, and the corresponding bit in the quotient is set to 1. Otherwise, it is set to 0.
+
+4. **Edge Cases**:
+   - **Division by Zero**: Handled by setting the quotient to an error value and the remainder to the dividend.
+   - **Divisor Greater than Dividend**: The quotient will naturally compute to zero, and the remainder will be the dividend itself.
+
+This implementation is purely combinational and updates the outputs whenever the inputs change.
+
+
+traffic_light
+Below is a Verilog implementation for the `traffic_light` module as described. This module simulates a traffic light system with a pedestrian request button that can modify the timing of the green light.
+
+```verilog
+module traffic_light(
+    input rst_n,
+    input clk,
+    input pass_request,
+    output reg [7:0] clock,
+    output reg red,
+    output reg yellow,
+    output reg green
+);
+
+    // State definitions
+    parameter idle = 2'b00, s1_red = 2'b01, s2_yellow = 2'b10, s3_green = 2'b11;
+
+    // Registers
+    reg [7:0] cnt;
+    reg [1:0] state, next_state;
+
+    // State transition logic
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state <= idle;
+        end else begin
+            state <= next_state;
+        end
+    end
+
+    // Next state logic and output logic
+    always @(*) begin
+        case (state)
+            idle: begin
+                next_state = s1_red;
+                red = 1; yellow = 0; green = 0;
+            end
+            s1_red: begin
+                red = 1; yellow = 0; green = 0;
+                if (cnt == 0) next_state = s3_green;
+                else next_state = s1_red;
+            end
+            s2_yellow: begin
+                red = 0; yellow = 1; green = 0;
+                if (cnt == 0) next_state = s1_red;
+                else next_state = s2_yellow;
+            end
+            s3_green: begin
+                red = 0; yellow = 0; green = 1;
+                if (cnt == 0) next_state = s2_yellow;
+                else next_state = s3_green;
+            end
+            default: begin
+                red = 0; yellow = 0; green = 0;
+                next_state = idle;
+            end
+        endcase
+    end
+
+    // Counter logic
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            cnt <= 10;  // Default reset value
+        end else begin
+            if (state == s3_green && pass_request && cnt > 10) begin
+                cnt <= 10;  // Shorten green time if pedestrian button is pressed
+            end else if (cnt == 0) begin
+                case (state)
+                    s1_red: cnt <= 60;
+                    s2_yellow: cnt <= 5;
+                    s3_green: cnt <= 10;
+                    default: cnt <= 10;
+                endcase
+            end else begin
+                cnt <= cnt - 1;  // Normal decrement
+            end
+        end
+    end
+
+    // Output the counter value
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            clock <= 0;
+        end else begin
+            clock <= cnt;
+        end
+    end
+
+endmodule
+```
+
+### Explanation:
+1. **State Machine**: The traffic light operates as a state machine with four states: `idle`, `s1_red`, `s2_yellow`, and `s3_green`.
+2. **Counter Logic**: The `cnt` register counts down based on the current state and resets based on the state transitions. If the pedestrian button (`pass_request`) is pressed during the green state and the remaining time is more than 10 cycles, it shortens the green time to 10 cycles.
+3. **Output Logic**: The traffic light outputs (`red`, `yellow`, `green`) are controlled based on the current state.
+4. **Clock Output**: The module outputs the current value of the counter for external monitoring.
+
+This module should be instantiated in a testbench or a higher-level system module to be simulated or synthesized as part of a larger system.
+
+
+width_8to16
+Certainly! Below is the Verilog code for the `width_8to16` module, which converts two consecutive 8-bit inputs into a single 16-bit output. The module waits for two valid inputs before generating the output. It also handles reset conditions and ensures that the output is only valid when two consecutive valid inputs have been received.
+
+```verilog
+module width_8to16(
+    input clk,
+    input rst_n,
+    input valid_in,
+    input [7:0] data_in,
+    output reg valid_out,
+    output reg [15:0] data_out
+);
+
+    // Internal state to store the first 8-bit data
+    reg [7:0] data_lock;
+    // Flag to indicate that the first data has been stored
+    reg data_stored;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            // Reset all registers and outputs
+            data_out <= 16'b0;
+            valid_out <= 1'b0;
+            data_lock <= 8'b0;
+            data_stored <= 1'b0;
+        end else begin
+            if (valid_in) begin
+                if (!data_stored) begin
+                    // Store the first valid 8-bit data
+                    data_lock <= data_in;
+                    data_stored <= 1'b1;
+                    valid_out <= 1'b0; // Output is not yet valid
+                end else begin
+                    // Concatenate the stored data and the new data
+                    data_out <= {data_lock, data_in};
+                    valid_out <= 1'b1; // Output is now valid
+                    data_stored <= 1'b0; // Reset the storage flag
+                end
+            end else begin
+                // If input is not valid, maintain the current state
+                valid_out <= 1'b0;
+            end
+        end
+    end
+
+endmodule
+```
+
+### Explanation:
+1. **State Management**: The module uses `data_lock` to store the first 8-bit data and `data_stored` as a flag to indicate that this data has been stored.
+2. **Reset Behavior**: On a reset (`!rst_n`), all outputs and internal states are cleared.
+3. **Data Handling**: When a valid input (`valid_in`) is detected:
+   - If no data has been stored yet (`!data_stored`), the input data is stored in `data_lock` and the flag `data_stored` is set.
+   - If there is already stored data (`data_stored`), the module concatenates the stored data with the new input to form a 16-bit output, sets the output valid flag (`valid_out`), and clears the `data_stored` flag for the next operation.
+4. **Output Validity**: The output `valid_out` is only set when a complete 16-bit data is formed, ensuring that partial data does not trigger a valid output.
+
+### Edge Cases and Complex Scenarios:
+- **Single Input**: If only one valid input is received and no subsequent valid input arrives, the output remains invalid, and no partial data is output.
+- **Reset During Processing**: If a reset occurs after receiving the first valid input but before the second, the module correctly resets without outputting partial data.
+- **Continuous Valid Inputs**: The module handles continuous streams of valid inputs by alternating between storing and outputting data.
+
+This implementation ensures robust handling of various input scenarios while maintaining correct synchronization with the clock and reset signals.
+
+
