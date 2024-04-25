@@ -1,18 +1,14 @@
-```
-
-  _____    _______   _        _        __  __        __      __  __       __ 
- |  __ \  |__   __| | |      | |      |  \/  |       \ \    / / /_ |     /_ |
- | |__) |    | |    | |      | |      | \  / |        \ \  / /   | |      | |
- |  _  /     | |    | |      | |      | |\/| |         \ \/ /    | |      | |
- | | \ \     | |    | |____  | |____  | |  | |          \  /     | |  _   | |  
- |_|  \_\    |_|    |______| |______| |_|  |_|           \/      |_| (_)  |_|
-                                                                             
-                                                                             
-                                              
-```
 This is a fork of the RTLLM github. I have modified their README for 17630 Final Project Submission.
-In _chatgpt4 t1-t5 are supplied by the authors of the paper. t6 onwards are my own runs. Some runs do not have all modules,
+
+Files of note:
+gen_code.ipynb: This is where all the prompt engineering was done, some pre-processing (reading design descriptions, creating new paths) and post-processing (putting answers in dictionaries, separating code from other text output, writing to new files)
+example_raw_code_generated.txt: Gives a sample raw output for a full run of all the modules before separating the code
+results.txt: Gives the results for pass@5 of one-shot with instruction tuning. By module, it says how many had syntax passes vs functional passes and then the pass@5 results are on the following lines (out of 29).
+auto_run.py: Written by authors of RTLLM and automatically runs testbenches and calculates passes. Only slightly modified by me. 
+_chatgpt4/: Runs for various prompting techniques. t1-t5 are supplied by the authors of the paper. t6 onwards are my own runs. Some runs do not have all modules,
 as I was trying out a few test cases at a time to save some money. My final results that I used for pass@5 are t17-t21.
+pulse_detect/design_description.txt: The modified design description I wrote which helped me get a pass on functional correctness.
+
 
 
 
